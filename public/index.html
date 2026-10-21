@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinic Booking Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen py-10 px-4">
+  <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-md p-6">
+    <h1 class="text-2xl font-bold text-gray-900 mb-2">Clinic Appointment Booking</h1>
+    <p class="text-sm text-gray-500 mb-6">Select an available slot and enter your details to reserve an appointment.</p>
+
+    <!-- API Key Input -->
+    <div class="mb-4">
+      <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">X-API-Key</label>
+      <input id="apiKey" type="password" value="koya_assessment_secret_key_2026" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    </div>
+
+    <!-- Booking Form -->
+    <form id="bookingForm" class="space-y-4 mb-8">
+      <div>
+        <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Full Name</label>
+        <input id="patientName" type="text" placeholder="Ada Obi" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Email Address</label>
+        <input id="patientEmail" type="email" placeholder="ada@example.com" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Select Available Slot</label>
+        <select id="slotSelect" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Loading slots...</option>
+        </select>
+      </div>
+      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm transition">
+        Confirm Booking
+      </button>
+    </form>
+
+    <!-- Status Messages -->
+    <div id="statusMessage" class="hidden rounded-lg p-4 mb-6 text-sm"></div>
+
+    <!-- Confirmation View -->
+    <div id="confirmationCard" class="hidden border rounded-lg p-4 bg-gray-50">
+      <h3 class="font-bold text-green-700 mb-2">Booking Confirmed!</h3>
+      <div class="text-xs space-y-1 text-gray-600">
+        <p><strong>Booking ID:</strong> <span id="confId"></span></p>
+        <p><strong>Slot ID:</strong> <span id="confSlot"></span></p>
+        <p><strong>Name:</strong> <span id="confName"></span></p>
+        <p><strong>Email:</strong> <span id="confEmail"></span></p>
+        <p><strong>Status:</strong> <span id="confStatus" class="uppercase text-green-600 font-bold"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('bookingForm');
+    const slotSelect = document.getElementById('slotSelect');
+    const apiKeyInput = document.getElementById('apiKey');
+    const statusMsg = document.getElementById('statusMessage');
+    const confirmationCard = document.getElementById('confirmationCard');
+
+    async function loadSlots() {
+      try {
+        const res = await fetch('/slots', {
+          headers: { 'X-API-Key': apiKeyInput.value }
+        });
+        const data = await res.json();
+        slotSelect.innerHTML = '<option value="">-- Choose a Slot --</option>';
+        if (data.slots && data.slots.length > 0) {
+          data.slots.forEach(slot => {
+            const opt = document.createElement('option');
+            opt.value = slot.id;
+            opt.disabled = !slot.available;
+            opt.textContent = `${slot.provider} (${new Date(slot.start).toLocaleString()}) - ${slot.available ? 'Available' : 'Booked'}`;
+            slotSelect.appendChild(opt);
+          });
+        } else {
+          slotSelect.innerHTML = '<option value="">No slots configured</option>';
+        }
+      } catch (err) {
+        slotSelect.innerHTML = '<option value="">Failed to load slots</option>';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      statusMsg.className = 'hidden';
+      confirmationCard.className = 'hidden';
+
+      const payload = {
+        slot_id: slotSelect.value,
+        name: document.getElementById('patientName').value,
+        email: document.getElementById('patientEmail').value
+      };
+
+      try {
+        const res = await fetch('/bookings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKeyInput.value
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          confirmationCard.classList.remove('hidden');
+          document.getElementById('confId').textContent = data.id;
+          document.getElementById('confSlot').textContent = data.slot_id;
+          document.getElementById('confName').textContent = data.name;
+          document.getElementById('confEmail').textContent = data.email;
+          document.getElementById('confStatus').textContent = data.status;
+          loadSlots();
+        } else {
+          statusMsg.className = 'rounded-lg p-4 mb-6 text-sm bg-red-100 text-red-700 block';
+          statusMsg.textContent = data.error || 'Booking failed';
+        }
+      } catch (err) {
+        statusMsg.className = 'rounded-lg p-4 mb-6 text-sm bg-red-100 text-red-700 block';
+        statusMsg.textContent = err.message;
+      }
+    });
+
+    apiKeyInput.addEventListener('change', loadSlots);
+    loadSlots();
+  </script>
+</body>
+</html>
